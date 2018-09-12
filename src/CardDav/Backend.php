@@ -120,7 +120,16 @@ class Backend
         throw new \Exception('Received HTTP ' . $response->getStatusCode());
     }
 
-    private function getRequestOptions($options = [])
+    private function getClient()
+    {
+        if (!$this->client) {
+            $this->client = new Client($this->getClientOptions());
+        }
+
+        return $this->client;
+    }
+
+    private function getClientOptions($options = [])
     {
         if ($this->username) {
             $options['auth'] = [$this->username, $this->password, $this->authentication];
@@ -131,10 +140,9 @@ class Backend
 
     public function fetchImage($uri)
     {
-        $this->client = $this->client ?? new Client();
-        $request = new Request('GET', $uri, $this->getRequestOptions());
+        $request = new Request('GET', $uri);
 
-        $response = $this->client->send($request);
+        $response = $this->getClient()->send($request);
 
         if (200 !== $response->getStatusCode()) {
             throw new \Exception('Received HTTP ' . $response->getStatusCode());
@@ -221,10 +229,9 @@ class Backend
      */
     private function query($url, $method, $content = null, $content_type = null)
     {
-        $this->client = $this->client ?? new Client();
-        $request = new Request($method, $url, $this->getRequestOptions([
+        $request = new Request($method, $url, [
             'Depth' => '1'
-        ]));
+        ]);
 
         if ($content_type) {
             $request = $request->withHeader('Content-type', $content_type);
@@ -234,7 +241,7 @@ class Backend
             $request = $request->withBody($content);
         }
 
-        $response = $this->client->send($request);
+        $response = $this->getClient()->send($request);
         return $response;
     }
 }
