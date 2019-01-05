@@ -114,7 +114,11 @@ function dissolveGroups (array $vcards): array
 
     foreach ($vcards as $key => $vcard) {          // separate iCloud groups
         if (isset($vcard->xabsmember)) {
-            $groups[$vcard->fullname] = $vcard->xabsmember;
+            if (array_key_exists($vcard->fullname, $groups)) {
+                $groups[$vcard->fullname] = array_merge($groups[$vcard->fullname], $vcard->xabsmember);
+            } else {
+                $groups[$vcard->fullname] = $vcard->xabsmember;
+            }
             unset($vcards[$key]);
             continue;
         }
@@ -276,11 +280,11 @@ EOT
     $converter = new Converter($conversions);
 
     foreach ($cards as $card) {
-        $contact = $converter->convert($card);
-        // $root->addChild('contact', $contact);
-        xml_adopt($root, $contact);
+        $contacts = $converter->convert($card);
+        foreach ($contacts as $contact) {
+            xml_adopt($root, $contact);
+        }
     }
-
     return $xml;
 }
 
@@ -309,7 +313,7 @@ function xml_adopt(SimpleXMLElement $to, SimpleXMLElement $from)
 function upload(string $xml, $config)
 {
     $fritzbox = $config['fritzbox'];
-    
+
     $fritz = new Api($fritzbox['url'], $fritzbox['user'], $fritzbox['password']);
 
     $formfields = array(
