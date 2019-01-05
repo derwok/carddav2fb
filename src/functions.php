@@ -47,7 +47,7 @@ function download(Backend $backend, $substitutes, callable $callback=null): arra
  *
  * @param $vcards     array     downloaded vCards
  * @param $config     array
- * @return                      number of transfered files
+ * @return            array     number of uploaded/refreshed images; number of total found images
  */
 function uploadImages(array $vcards, $config)
 {   
@@ -60,15 +60,15 @@ function uploadImages(array $vcards, $config)
     $ftp_conn = ftp_connect($ftpserver);
     if (!$ftp_conn) {
         error_log("ERROR: Could not connect to ftp server ".$ftpserver." for image upload.");
-        return 0;
+        return array(0, 0);
     }
-    if (! ftp_login($ftp_conn, $config['user'], $config['password'])) {
+    if (!ftp_login($ftp_conn, $config['user'], $config['password'])) {
         error_log("ERROR: Could not log in ".$config['user']." to ftp server ".$ftpserver." for image upload.");
-        return 0;
+        return array(0, 0);
     } 
-    if (! ftp_chdir($ftp_conn, $config['fonpix'])){
+    if (!ftp_chdir($ftp_conn, $config['fonpix'])){
         error_log("ERROR: Could change to dir ".$config['fonpix']." on ftp server ".$ftpserver." for image upload.");
-        return 0;
+        return array(0, 0);
     } 
     $progress = new ProgressBar(new ConsoleOutput());
     $progress->start(count($vcards));
@@ -90,7 +90,7 @@ function uploadImages(array $vcards, $config)
                 if (ftp_fput($ftp_conn, $remotefilename, $memstream, FTP_BINARY)){
                     $countUploadedImages++;
                 } else {
-                    echo "Error uploading $remotefilename.\n";
+                    error_log("Error uploading $remotefilename.\n");
                     unset($vcard->rawPhoto);                           // no wrong link will set in phonebook
                 }
                 fclose($memstream);
