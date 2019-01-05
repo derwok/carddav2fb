@@ -7,8 +7,6 @@ use Andig\Vcard\Parser;
 use Andig\FritzBox\Converter;
 use Andig\FritzBox\Api;
 use \SimpleXMLElement;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Symfony\Component\Console\Helper\ProgressBar;
 
 /**
  * Initialize backend from configuration
@@ -49,7 +47,7 @@ function download(Backend $backend, $substitutes, callable $callback=null): arra
  * @param $config     array
  * @return            array     number of uploaded/refreshed images; number of total found images
  */
-function uploadImages(array $vcards, $config)
+function uploadImages(array $vcards, $config, callable $callback=null)
 {   
     $countUploadedImages = 0;
     $countAllImages = 0;    
@@ -60,20 +58,21 @@ function uploadImages(array $vcards, $config)
     $ftp_conn = ftp_connect($ftpserver);
     if (!$ftp_conn) {
         error_log("ERROR: Could not connect to ftp server ".$ftpserver." for image upload.");
-        return array(0, 0);
+        return false;
     }
     if (!ftp_login($ftp_conn, $config['user'], $config['password'])) {
         error_log("ERROR: Could not log in ".$config['user']." to ftp server ".$ftpserver." for image upload.");
-        return array(0, 0);
+        return false;
     } 
     if (!ftp_chdir($ftp_conn, $config['fonpix'])){
         error_log("ERROR: Could change to dir ".$config['fonpix']." on ftp server ".$ftpserver." for image upload.");
-        return array(0, 0);
+        return false;
     } 
-    $progress = new ProgressBar(new ConsoleOutput());
-    $progress->start(count($vcards));
     foreach ($vcards as $vcard) {
-        $progress->advance();
+        if (is_callable($callback)) {
+            ($callback)();
+        }
+
         if (isset($vcard->rawPhoto)) {                                     // skip all other vCards
             if (preg_match("/JPEG/", strtoupper(substr($vcard->photoData, 0, 256)))) {     // Fritz!Box only accept jpg-files
                 $countAllImages++;
@@ -98,7 +97,6 @@ function uploadImages(array $vcards, $config)
         }
     }
     ftp_close($ftp_conn);
-    $progress->finish();
     error_log("\n");
 
     return array($countUploadedImages, $countAllImages);
