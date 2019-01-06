@@ -48,9 +48,9 @@ function download(Backend $backend, $substitutes, callable $callback=null): arra
  * @return            array     number of uploaded/refreshed images; number of total found images
  */
 function uploadImages(array $vcards, $config, callable $callback=null)
-{   
+{
     $countUploadedImages = 0;
-    $countAllImages = 0;    
+    $countAllImages = 0;
 
     // Prepare FTP connection
     $ftpserver = $config['url'];
@@ -63,11 +63,11 @@ function uploadImages(array $vcards, $config, callable $callback=null)
     if (!ftp_login($ftp_conn, $config['user'], $config['password'])) {
         error_log("ERROR: Could not log in ".$config['user']." to ftp server ".$ftpserver." for image upload.");
         return false;
-    } 
+    }
     if (!ftp_chdir($ftp_conn, $config['fonpix'])){
         error_log("ERROR: Could change to dir ".$config['fonpix']." on ftp server ".$ftpserver." for image upload.");
         return false;
-    } 
+    }
     foreach ($vcards as $vcard) {
         if (is_callable($callback)) {
             ($callback)();
@@ -312,6 +312,8 @@ function xml_adopt(SimpleXMLElement $to, SimpleXMLElement $from)
  */
 function upload(string $xml, $config)
 {
+    getOldPhonebook($config);
+
     $fritzbox = $config['fritzbox'];
 
     $fritz = new Api($fritzbox['url'], $fritzbox['user'], $fritzbox['password']);
@@ -333,4 +335,45 @@ function upload(string $xml, $config)
     if (strpos($result, 'Das Telefonbuch der FRITZ!Box wurde wiederhergestellt') === false) {
         throw new \Exception('Upload failed');
     }
+}
+
+/**
+ * Downloads the old phone book from Fritzbox
+ *
+ * @param array $config
+ * @return SimpleXMLElement with the old phonebook
+ */
+function getOldPhonebook($config)
+{
+    $fritzbox = $config['fritzbox'];
+    $fritz = new Api($fritzbox['url'], $fritzbox['user'], $fritzbox['password']);
+    $formfields = array(
+        'PhonebookId' => $config['phonebook']['id'],
+        'PhonebookExportName' => $config['phonebook']['name'],
+        'PhonebookExport' => "",
+    );
+    $result = $fritz->doPostFile($formfields); // send the command
+    if (substr($result, 0, 5) !== "<?xml") {
+        error_log("ERROR: Could not load old phonebook with ID=".$config['phonebook']['id']);
+        return false;
+    }
+    $XMLPhonebook = simplexml_load_string($result);
+    return $XMLPhonebook;
+}
+
+
+function getQuickDials ($XMLPhonebook) {
+    $quickdials = [];
+    foreach($XMLPhonebook->phonebook->contact as $contact)
+    {
+        echo $contact->carddav_uid."\n";
+        foreach ($contact->telephony->number as $number) {
+            if (isset($number->attributes()->quickdial)) {
+                // build unique key: {normalized-phone-number}@{vCard UUID} mapping to quick dial number
+                $key = preg_replace("/[^\+0-9]/", "", $number)."@".$contact->carddav_uid;
+                $quickdials[$key] = $number->attributes()->quickdial."";    // force to string
+            }
+        }
+    }
+    return $quickdials;
 }
